@@ -189,3 +189,4 @@ For every GPU that use FP16, there are some calculations:
 
 * [Dreamlike Art Model](https://huggingface.co/dreamlike-art/dreamlike-photoreal-2.0)
 * [StableDiffusion Prompt Generator](https://huggingface.co/Ar4ikov/gpt2-650k-stable-diffusion-prompt-generator)
+* [CodeFormer Face Upsamler](https://github.com/sczhou/CodeFormer)
