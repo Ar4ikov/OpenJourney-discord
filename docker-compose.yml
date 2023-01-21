@@ -1,0 +1,38 @@
+version: '3'
+
+services:
+  openjourney:
+    image: openjourney/openjourney:latest
+    container_name: openjourney
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./.cache:/openjourney/.cache
+      - ./uploads:/openjourney/uploads
+      - ./discord_bot:/openjourney/discord_bot
+      - ./sd_pipeline:/openjourney/sd_pipeline
+      - ./.env:/openjourney/.env
+      - ./openjourney.py:/openjourney/openjourney.py
+      - ./export_user_prompts.py:/openjourney/export_user_prompts.py
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - gpus=all
+    env_file:
+      - .env
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        limits:
+          cpus: '8.0'
+          memory: 32768M
+        reservations:
+          devices:
+          - driver: nvidia
+            count: 2
+            capabilities: [gpu]
