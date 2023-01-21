@@ -32,7 +32,7 @@ If you want to contribute to OpenJourney, you can fork this repository and make 
 5. [Install Nvidia Docker](#4-install-nvidia-docker)
 6. [Setup the environment](#5-setup-the-environment)
 7. [Build the image](#6-build-the-image)
-8. [Run the container](#7-run-the-container)
+8. [Run the container](#70-run-the-container)
 
 
 ### 0. Create a Discord Application & Bot, Invite to your server
@@ -153,7 +153,7 @@ This should output the following:
 | `NUM_THREADS_PER_GPU` | Number of threads per GPU | `2` |
 | `NSFW_GENERATE` | Allow NSFW generate images content | `True` |
 
-### 6. Build the container
+### 6. Build the image
 
 ```bash
 source .env && docker-compose build
