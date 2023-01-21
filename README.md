@@ -1,5 +1,7 @@
 # OpenJourney-discord
 
+![image](https://user-images.githubusercontent.com/20085792/213840726-1f272ab8-f082-43f5-8d2a-2c7f5691e4cc.png)
+
 This is the official repository for the OpenJourney Discord bot.
 
 ## What is OpenJourney?
