@@ -1,6 +1,7 @@
 # OpenJourney-discord
 
-![image](https://user-images.githubusercontent.com/20085792/213840726-1f272ab8-f082-43f5-8d2a-2c7f5691e4cc.png)
+![image](/../../../../Ar4ikov/animated-spork/blob/main/spiral.gif)
+
 
 This is the official repository for the OpenJourney Discord bot.
 
@@ -189,4 +190,4 @@ For every GPU that use FP16, there are some calculations:
 
 * [Dreamlike Art Model](https://huggingface.co/dreamlike-art/dreamlike-photoreal-2.0)
 * [StableDiffusion Prompt Generator](https://huggingface.co/Ar4ikov/gpt2-650k-stable-diffusion-prompt-generator)
-* [CodeFormer Face Upsamler](https://github.com/sczhou/CodeFormer)
+* [CodeFormer Face Upsampler](https://github.com/sczhou/CodeFormer)
