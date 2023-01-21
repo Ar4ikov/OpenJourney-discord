@@ -25,14 +25,14 @@ If you want to contribute to OpenJourney, you can fork this repository and make 
 
 ### Index
 
-1. [Create a Discord Application & Bot, Invite to your server](#1-create-a-discord-application--bot-invite-to-your-server)
-2. [Clone the repository](#2-clone-the-repository)
-3. [Install NVIDIA Runtime](#3-install-nvidia-runtime)
-4. [Install Docker and docker-compose (optional)](#4-install-docker-and-docker-compose-optional)
-5. [Install Nvidia Docker](#5-install-nvidia-docker)
-6. [Setup the environment](#6-setup-the-environment)
-7. [Build the Docker image](#7-build-the-docker-image)
-8. [Run the Docker container](#8-run-the-docker-container)
+1. [Create a Discord Application & Bot, Invite to your server](#0-create-a-discord-application--bot-invite-to-your-server)
+2. [Clone the repository](#1-clone-the-repository)
+3. [Install NVIDIA Runtime](#2-install-nvidia-runtime)
+4. [Install Docker and docker-compose (optional)](#3-install-docker-and-docker-compose-optional)
+5. [Install Nvidia Docker](#4-install-nvidia-docker)
+6. [Setup the environment](#5-setup-the-environment)
+7. [Build the image](#6-build-the-image)
+8. [Run the container](#7-run-the-container)
 
 
 ### 0. Create a Discord Application & Bot, Invite to your server
