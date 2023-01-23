@@ -108,7 +108,26 @@ sudo apt-get update
 sudo apt-get install -y nvidia-docker2
 ```
 
-4. Restart the Docker daemon
+4. Change the default runtime to nvidia [Link](https://stackoverflow.com/questions/59691207/docker-build-with-nvidia-runtime)
+
+```bash
+sudo nano /etc/docker/daemon.json
+```
+
+It should looks like:
+```json
+{
+    "runtimes": {
+        "nvidia": {
+            "path": "/usr/bin/nvidia-container-runtime",
+            "runtimeArgs": []
+         } 
+    },
+    "default-runtime": "nvidia" 
+}
+```
+
+5. Restart the Docker daemon
 
 ```bash
 sudo systemctl restart docker

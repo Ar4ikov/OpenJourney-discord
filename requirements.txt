@@ -1,4 +1,3 @@
-ninja==1.11.1
 triton
 accelerate==0.15.0
 transformers~=4.25.1
