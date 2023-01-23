@@ -13,10 +13,6 @@ jobs:
     runs-on: [self-hosted]
 
     steps:
-    - uses: Jimver/cuda-toolkit@v0.2.8
-      id: cuda-toolkit
-      with:
-        cuda: '11.6.0'
     - uses: actions/checkout@v3
     - name: Build the Docker image
       run: docker build . --file Dockerfile --tag openjourney/openjourney:$(date +%s)
