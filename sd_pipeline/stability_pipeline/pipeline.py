@@ -61,7 +61,9 @@ class StabilityPipeline():
 
         else:
             raise ValueError('Invalid pipe_type, must be either "text2img" or "img2img"')
-
+        
+        # XFormers memory efficient attention optimization
+        pipeline.enable_xformers_memory_efficient_attention()
         self.pipeline = pipeline
 
     def set_scheduler(self, scheduler: schedulers.SchedulerMixin):
