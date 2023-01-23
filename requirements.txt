@@ -1,6 +1,5 @@
 ninja==1.11.1
 triton
-xformers
 accelerate==0.15.0
 transformers~=4.25.1
 tokenizers~=0.13.2

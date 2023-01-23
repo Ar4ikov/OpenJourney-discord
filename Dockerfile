@@ -28,6 +28,23 @@ ENV HF_HOME /openjourney/.cache
 ENV TRANSFORMERS_CACHE /openjourney/.cache
 ENV UPLOAD_PATH /openjourney/uploads
 
+# Install cutlass
+WORKDIR /openjourney
+RUN apt update && apt install -y build-essential && rm -rf /var/lib/apt/lists/*
+RUN git clone https://github.com/NVIDIA/cutlass
+WORKDIR /openjourney/cutlass
+ENV CUDACXX=/opt/conda/bin/nvcc
+RUN mkdir build
+WORKDIR /openjourney/cutlass/build
+RUN cmake ..
+
+# Install xformers
+WORKDIR /openjourney
+RUN git clone https://github.com/facebookresearch/xformers
+WORKDIR /openjourney/xformers
+RUN git submodule update --init --recursive
+RUN pip install --verbose --no-deps -e .
+
 # Install dependencies for OpenJourney
 WORKDIR /openjourney
 RUN pip install -r requirements.txt
