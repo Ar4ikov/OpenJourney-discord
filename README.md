@@ -1,7 +1,7 @@
 # OpenJourney-discord
 
+![build](/../../../OpenJourney-discord/actions/workflows/docker-image.yml/badge.svg)<br>
 ![image](/../../../../Ar4ikov/animated-spork/blob/main/spiral.gif)
-
 
 This is the official repository for the OpenJourney Discord bot.
 
