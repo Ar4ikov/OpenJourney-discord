@@ -13,6 +13,16 @@ from .worker import OpenJourneyController
 from sd_pipeline import StabilityPipelineType
 
 
+SD_MODEL_IDS = []
+
+# parse SD_MODEL_ID_{} from environ, starts from 1, if return None value - stop
+for i in range(1, 100):
+    model_id = os.environ.get(f'SD_MODEL_ID_{i}')
+    if model_id is None:
+        break
+    SD_MODEL_IDS.append(model_id)
+
+
 class OpenJourneyDialog(View):
     ACTION_TYPE: TypeAlias = Literal['variants', 'upscale', 'regenerate']
 
@@ -142,11 +152,12 @@ class OpenJourneyBot:
         else:
             self.guild = Object(id=int(self.guild_id))
 
-        self.sd_model_id = os.environ['SD_MODEL_ID']
+        self.sd_model_ids = SD_MODEL_IDS.copy()
+
         self.gpt_model_id = os.environ['GPT_MODEL_ID']
         self.nsfw_generate = os.environ.get('NSFW_GENERATE', False).lower() in ['true', '1', 't', 'y', 'yes']
         self.controller = OpenJourneyController(self.client, os.environ['UPLOAD_PATH'], 
-            sd_model_id=self.sd_model_id, gpt_model_id=self.gpt_model_id, nsfw_generate=self.nsfw_generate)
+            sd_model_ids=self.sd_model_ids, gpt_model_id=self.gpt_model_id, nsfw_generate=self.nsfw_generate)
 
     def commands(self):
         self.command_tree.command(
@@ -171,6 +182,7 @@ class OpenJourneyBot:
         self.client.event(self.on_guild_join)
 
     async def on_ready(self):
+        print('Syncing commands...')
         await self.command_tree.sync()
         print("Bot is ready!")
 
@@ -273,7 +285,7 @@ class OpenJourneyBot:
             seed=seed,
             aspect_ratio_sizes=aspect_sizes,
             scheduler=scheduler,
-            sd_model_id=os.environ.get('SD_MODEL_ID'),
+            sd_model_id=SD_MODEL_IDS[0],
             gpt_model_id=os.environ.get('GPT_MODEL_ID')
         )
 
@@ -331,7 +343,7 @@ class OpenJourneyBot:
             guidance_scale=guidance_scale,
             seed=seed,
             scheduler=scheduler,
-            sd_model_id=os.environ.get('SD_MODEL_ID'),
+            sd_model_id=SD_MODEL_IDS[0],
             gpt_model_id=os.environ.get('GPT_MODEL_ID')
         )
 
