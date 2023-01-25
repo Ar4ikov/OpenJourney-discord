@@ -1,20 +1,38 @@
 from dataclasses import dataclass, asdict
-from typing import Literal
+from typing import Literal, TypeAlias
 from discord import Interaction
+from diffusers import schedulers
+from sd_pipeline import StabilityPipelineType
+from enum import Enum
 
-pipe_type = Literal['text2img', 'img2img', 'img2upscale']
-schedulers = Literal['euler', 'lms', 'dpmsolver']
 
-# TODO: Add options for sd_model_id and gpt_model_id
+class SchedulerType(Enum):
+    EULER = schedulers.EulerAncestralDiscreteScheduler
+    LMS = schedulers.LMSDiscreteScheduler
+    DPMSOLVER = schedulers.DPMSolverMultistepScheduler
+
+
+ASPECT_RATIO: TypeAlias = Literal["16:9", "4:3", "1:1-max", "1:1", "9:16", "3:4"]
+
+# sizes for max side is 768 px
+ASPECT_RATIO_SIZES = {
+    "16:9": (768, 432),
+    "4:3": (768, 576),
+    "1:1-max": (640, 640),
+    "1:1": (512, 512),
+    "9:16": (432, 768),
+    "3:4": (576, 768)
+}
+
 
 @dataclass
 class Prompt:
-    pipe_type: pipe_type
+    pipe_type: StabilityPipelineType
     prompt: str
     seed: int
     sd_model_id: str = None
     gpt_model_id: str = None
-    scheduler: schedulers = 'dpmsolver'
+    scheduler: SchedulerType = SchedulerType.DPMSOLVER
     generated_prompt: str = None
     guidance_scale: float = 7.5
     steps: int = 50
@@ -36,6 +54,19 @@ class Prompt:
 
     def to_dict(self):
         return asdict(self)
+
+
+def prompt_asdict_factory(prompt_data):
+    def convert_value(obj):
+        if isinstance(obj, StabilityPipelineType):
+            return obj.value
+
+        if isinstance(obj, SchedulerType):
+            return obj.name.lower()
+
+        return obj
+
+    return dict((k, convert_value(v)) for k, v in prompt_data)
 
 
 @dataclass

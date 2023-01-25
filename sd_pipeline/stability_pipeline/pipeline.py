@@ -1,6 +1,7 @@
 from .pipeline_mixer import create_codeformer_pipeline, create_image_pipeline, create_text_pipeline, create_imaginary_prompt_pipeline
 import torch
 from diffusers import schedulers
+from enum import Enum
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
 import subprocess
 import PIL
@@ -9,11 +10,19 @@ import gc
 import requests
 import io
 
-__all__ = ['StabilityPipeline']
+__all__ = ['StabilityPipeline', 'StabilityPipelineType']
 
+
+class StabilityPipelineType(Enum):
+    TEXT2IMG = 'text2img'
+    IMG2IMG = 'img2img'
+    IMG2UPSCALE = 'img2upscale'
+
+
+# Thoughts about implementing a config for pipeline in the future with dataclasses
 
 class StabilityPipeline():
-    def __init__(self, pipe_type: str, scheduler: schedulers.SchedulerMixin = None, 
+    def __init__(self, pipe_type: StabilityPipelineType, scheduler: schedulers.SchedulerMixin = None, 
         device: torch.device = 'cpu', sd_model_id: str = None, gpt_model_id: str = None, **kwargs):
         """
         Creates a stability pipeline
@@ -42,9 +51,9 @@ class StabilityPipeline():
             self.safety_check = False
 
         self.pipeline = None
-        self.pipe_type = pipe_type
+        self.pipe_type = pipe_type.value
 
-        self.setup_pipeline(pipe_type, device, scheduler, self.safety_check)
+        self.setup_pipeline(pipe_type.value, device, scheduler, self.safety_check)
 
     def setup_pipeline(self, pipe_type: str, device: torch.device, scheduler: schedulers.SchedulerMixin = None,
         safety_check: bool = False):

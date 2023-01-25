@@ -1,4 +1,4 @@
-from sd_pipeline import StabilityPipeline
+from sd_pipeline import StabilityPipeline, StabilityPipelineType
 from diffusers import schedulers
 import pathlib
 import uuid
@@ -6,7 +6,7 @@ import PIL
 import torch
 import random
 import threading
-from .prompt_factory import QueueItem, Prompt, Interaction, pipe_type
+from .prompt_factory import QueueItem, Prompt, Interaction
 from typing import Callable
 from time import sleep
 import shutil
@@ -56,7 +56,7 @@ class OpenJourneyWorker(threading.Thread):
             self.gpu_first: bool = False
 
         self.text2img_pipeline = StabilityPipeline(
-            pipe_type='text2img',
+            pipe_type=StabilityPipelineType.TEXT2IMG,
             device='cpu' if not self.gpu_first else self.device,
             sd_model_id=self.sd_model_id,
             gpt_model_id=self.gpt_model_id,
@@ -64,7 +64,7 @@ class OpenJourneyWorker(threading.Thread):
         )
 
         self.img2img_pipeline = StabilityPipeline(
-            pipe_type='img2img',
+            pipe_type=StabilityPipelineType.IMG2IMG,
             device='cpu' if not self.gpu_first else self.device,
             sd_model_id=self.sd_model_id,
             gpt_model_id=self.gpt_model_id
@@ -93,7 +93,7 @@ class OpenJourneyWorker(threading.Thread):
             seed = random.randint(0, 2 ** 32)
 
         if scheduler is not None:
-            self.text2img_pipeline.set_scheduler(scheduler)
+            self.text2img_pipeline.set_scheduler(scheduler.value)
 
         images = []
 
@@ -120,7 +120,7 @@ class OpenJourneyWorker(threading.Thread):
             seed = random.randint(0, 2 ** 32)
 
         if scheduler is not None:
-            self.img2img_pipeline.set_scheduler(scheduler)
+            self.img2img_pipeline.set_scheduler(scheduler.value)
 
         images = []
 
@@ -160,7 +160,7 @@ class OpenJourneyWorker(threading.Thread):
                     device=self.device
                 )
 
-            if prompt.pipe_type == 'text2img':
+            if prompt.pipe_type == StabilityPipelineType.TEXT2IMG:
                 images = self.text2img_pipeline.create_job(
                     self.text_diffuse, device=self.device,
                     prompt=prompt.generated_prompt,
@@ -173,7 +173,7 @@ class OpenJourneyWorker(threading.Thread):
                     scheduler=prompt.scheduler
                 )
 
-            elif prompt.pipe_type == 'img2img':
+            elif prompt.pipe_type == StabilityPipelineType.IMG2IMG:
                 # using regex for check if image_url is valid url of valid local filename
                 is_valid_url = self.text2img_pipeline.is_image(prompt.image_url)
                 is_valid_local_filename = os.path.isfile(prompt.image_url)
@@ -227,7 +227,7 @@ class OpenJourneyWorker(threading.Thread):
                     scheduler=prompt.scheduler
                 )
 
-            elif prompt.pipe_type == 'img2upscale':
+            elif prompt.pipe_type == StabilityPipelineType.IMG2UPSCALE:
                 images = [PIL.Image.open(prompt.image_url).convert('RGB')]
 
             sd_batch_id = str(uuid.uuid4())
