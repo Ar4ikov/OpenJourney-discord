@@ -169,11 +169,18 @@ This should output the following:
 | --- | --- | --- |
 | `DISCORD_TOKEN` | Discord bot token | `None` |
 | `GUILD_ID` | Discord server ID, -1 if sync commans globally | `-1` |
-| `SD_MODEL_ID` | StableDiffusion model ID | `dreamlike-art/dreamlike-photoreal-2.0` |
+| `SD_MODEL_ID_1` | StableDiffusion model ID | `dreamlike-art/dreamlike-photoreal-2.0` |
 | `GPT_MODEL_ID` | GPT-2 model ID for Magic Prompt generate | `Ar4ikov/gpt2-650k-stable-diffusion-prompt-generator` |
 | `NUM_GPUS` | Number of GPUs to use | `1` |
 | `NUM_THREADS_PER_GPU` | Number of threads per GPU | `2` |
 | `NSFW_GENERATE` | Allow NSFW generate images content | `True` |
+
+You can use multiple models for StableDiffusion, just add `SD_MODEL_ID_2`, `SD_MODEL_ID_3` and so on
+
+```bash
+cp .env_example .env
+nano .env
+```
 
 ### 6. Build the image
 
