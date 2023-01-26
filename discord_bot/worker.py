@@ -56,7 +56,7 @@ class OpenJourneyWorker(threading.Thread):
             model_pipeline[StabilityPipelineType.TEXT2IMG] = StabilityPipeline(
                 pipe_type=StabilityPipelineType.TEXT2IMG,
                 device='cpu' if not self.gpu_first else self.device,
-                sd_model_id=self.sd_model_id,
+                sd_model_id=None,
                 gpt_model_id=self.gpt_model_id,
                 safety_check=not kwargs.get('nsfw_generate', True)
             )
@@ -64,8 +64,9 @@ class OpenJourneyWorker(threading.Thread):
             model_pipeline[StabilityPipelineType.IMG2IMG] = StabilityPipeline(
                 pipe_type=StabilityPipelineType.IMG2IMG,
                 device='cpu' if not self.gpu_first else self.device,
-                sd_model_id=self.sd_model_id,
-                gpt_model_id=self.gpt_model_id
+                sd_model_id=None,
+                gpt_model_id=self.gpt_model_id,
+                safety_check=not kwargs.get('nsfw_generate', True)
             )
 
             self.models_pipelines['default'] = model_pipeline
@@ -89,7 +90,8 @@ class OpenJourneyWorker(threading.Thread):
                     pipe_type=StabilityPipelineType.IMG2IMG,
                     device='cpu' if not self.gpu_first else self.device,
                     sd_model_id=model_id,
-                    gpt_model_id=self.gpt_model_id
+                    gpt_model_id=self.gpt_model_id,
+                    safety_check=not kwargs.get('nsfw_generate', True)
                 )
 
                 self.models_pipelines[model_id] = model_pipeline

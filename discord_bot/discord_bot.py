@@ -1,7 +1,6 @@
-from discord import Client, Guild, Intents, Interaction, Object, File, ButtonStyle
-from discord.app_commands import CommandTree, Command, describe
-from discord.ui import View, Button, button
-from diffusers import schedulers
+from discord.ui import View, Button, button, select, Select
+from discord import Client, Guild, Intents, Interaction, Object, File, ButtonStyle, SelectOption
+from discord.app_commands import CommandTree, describe
 import os
 import random
 import pathlib
@@ -13,14 +12,20 @@ from .worker import OpenJourneyController
 from sd_pipeline import StabilityPipelineType
 
 
-SD_MODEL_IDS = []
+SD_MODEL_IDS_ = []
 
 # parse SD_MODEL_ID_{} from environ, starts from 1, if return None value - stop
 for i in range(1, 100):
     model_id = os.environ.get(f'SD_MODEL_ID_{i}')
     if model_id is None:
         break
-    SD_MODEL_IDS.append(model_id)
+    SD_MODEL_IDS_.append(model_id)
+
+if len(SD_MODEL_IDS_) == 0:
+    SD_MODEL_IDS_.append('default')
+
+SD_MODEL_IDS = Literal['crunch']
+SD_MODEL_IDS.__args__ = tuple(SD_MODEL_IDS_)
 
 
 class OpenJourneyDialog(View):
@@ -139,6 +144,17 @@ class OpenJourneyDialog(View):
 
         await interaction.response.edit_message(view=self)
 
+    @select(options=[SelectOption(label=x.split('/')[1], value=x, emoji='🤗', description=x) for x in SD_MODEL_IDS.__args__], 
+        placeholder="Select a model", custom_id="model_select", max_values=1)
+    async def model_select(self, interaction: Interaction, select: Select):
+        self.prompt.model_id = select.values[0]
+
+        # change the select, set default=True for the selected model
+        for option in select.options:
+            option.default = option.value == self.prompt.model_id
+
+        await interaction.response.edit_message(view=self)
+
 
 class OpenJourneyBot:
     def __init__(self):
@@ -152,7 +168,7 @@ class OpenJourneyBot:
         else:
             self.guild = Object(id=int(self.guild_id))
 
-        self.sd_model_ids = SD_MODEL_IDS.copy()
+        self.sd_model_ids = SD_MODEL_IDS.__args__ if SD_MODEL_IDS.__args__ != ('default', ) else ()
 
         self.gpt_model_id = os.environ['GPT_MODEL_ID']
         self.nsfw_generate = os.environ.get('NSFW_GENERATE', False).lower() in ['true', '1', 't', 'y', 'yes']
@@ -213,6 +229,7 @@ class OpenJourneyBot:
                     f'Steps: `{prompt.steps}`\n' \
                     f'Guidance scale: `{prompt.guidance_scale}`\n' \
                     f'Seed: `{prompt.seed}`\n' \
+                    f'SD Model: `{prompt.sd_model_id}`\n' \
                     f'Scheduler: `{prompt.scheduler.name.lower()}`' \
                     '\n\nWARNING: This is the beta-test of new version, may not work properly. ' \
                     'Please report any bugs to @Ar4ikov#3805'
@@ -247,13 +264,15 @@ class OpenJourneyBot:
         seed='seed of the image (0 - 2 ** 32)',
         negative_prompt='negative prompt',
         aspect_ratio='aspect ratio of the image',
+        model_id='Choose the model to generate',
         scheduler='scheduler of the image',
         do_imagine_prompt='let GPT2 to imagine the prompt for you'
     )
     async def text_generate(self, interaction: Interaction, 
         prompt: str, steps: int = 50, guidance_scale: int = 10, 
         seed: int = None, negative_prompt: str = None, aspect_ratio: ASPECT_RATIO = "1:1",
-        scheduler: SchedulerType = SchedulerType.DPMSOLVER, do_imagine_prompt: bool = True):
+        scheduler: SchedulerType = SchedulerType.DPMSOLVER, do_imagine_prompt: bool = True,
+        model_id: SD_MODEL_IDS = "default"):
         # set thinking status
         await interaction.response.defer(thinking=True)
 
@@ -264,6 +283,7 @@ class OpenJourneyBot:
             assert seed is None or (seed >= 0 and seed <= 2 ** 32), "seed should be between 0 and 2 ** 32"
             assert aspect_ratio in ASPECT_RATIO_SIZES, "aspect_ratio should be one of the following: 1:1-max, 1:1, 4:3, 16:9"
             assert scheduler in SchedulerType, "scheduler should be one of the following: dpmsolver, lms, euler"
+            assert model_id in SD_MODEL_IDS, "model_id should be loaded to the server and chosen from the list"
         except AssertionError as e:
             await interaction.followup.send(e)
             return
@@ -285,7 +305,7 @@ class OpenJourneyBot:
             seed=seed,
             aspect_ratio_sizes=aspect_sizes,
             scheduler=scheduler,
-            sd_model_id=SD_MODEL_IDS[0],
+            sd_model_id=model_id,
             gpt_model_id=os.environ.get('GPT_MODEL_ID')
         )
 
@@ -302,13 +322,15 @@ class OpenJourneyBot:
         seed='seed of the image (0 - 2 ** 32)',
         negative_prompt='negative prompt',
         scheduler='scheduler of the image',
+        model_id='Choose the model to generate',
         do_imagine_prompt='let GPT2 to imagine the prompt for you'
     )
     async def image_generate(self, interaction: Interaction,
         image_url: str, prompt: str, image_resize: int = None,
         strength: float = 0.75, steps: int = 75, 
         guidance_scale: int = 10, seed: int = None, negative_prompt: str = None,
-        scheduler: SchedulerType = SchedulerType.DPMSOLVER, do_imagine_prompt: bool = True):
+        scheduler: SchedulerType = SchedulerType.DPMSOLVER, do_imagine_prompt: bool = True,
+        model_id: SD_MODEL_IDS = "default"):
         # set thinking status
         await interaction.response.defer(thinking=True)
 
@@ -320,6 +342,7 @@ class OpenJourneyBot:
             assert seed is None or (seed >= 0 and seed <= 2 ** 32), "seed should be between 0 and 2 ** 32"
             assert image_resize is None or (image_resize >= 128 and image_resize <= 768), "image_resize should be between 128 and 768"
             assert scheduler in SchedulerType, "scheduler should be one of the following: dpmsolver, lms, euler"
+            assert model_id in SD_MODEL_IDS, "model_id should be loaded to the server and chosen from the list"
         except AssertionError as e:
             await interaction.followup.send(e)
             return
@@ -343,7 +366,7 @@ class OpenJourneyBot:
             guidance_scale=guidance_scale,
             seed=seed,
             scheduler=scheduler,
-            sd_model_id=SD_MODEL_IDS[0],
+            sd_model_id=model_id,
             gpt_model_id=os.environ.get('GPT_MODEL_ID')
         )
 
