@@ -307,8 +307,14 @@ class OpenJourneyBot:
         # get ascpect ratio sizes
         aspect_sizes = ASPECT_RATIO_SIZES[aspect_ratio]
 
+        # pipe type set
+        if image_url is not None:
+            pipe_type = StabilityPipelineType.IMG2IMG
+        else:
+            pipe_type = StabilityPipelineType.TEXT2IMG
+
         prompt = Prompt(
-            pipe_type=StabilityPipelineType.TEXT2IMG,
+            pipe_type=pipe_type,
             prompt=prompt,
             generated_prompt=None if do_imagine_prompt else prompt,
             negative_prompt=negative_prompt,
