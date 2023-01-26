@@ -177,6 +177,11 @@ class OpenJourneyBot:
 
     def commands(self):
         self.command_tree.command(
+            name="imagine",
+            description="Imagine the new state-of-art!"
+        )(self.imagine)
+
+        self.command_tree.command(
             name="text_generate",
             description="Generate an image by text prompt",
             # guild=self.guild if self.guild_id != -1 else None
@@ -258,6 +263,77 @@ class OpenJourneyBot:
         )
 
     @describe(
+        prompt='Text to generate image',
+        image_url='your image url to prevent', 
+        image_resize='resize image to custom side with same ratio (128 - 768)',
+        steps='steps of the image (10 - 200)',
+        guidance_scale='guidance scale of the image (1 - 40)',
+        strength='strength of the image (0.01 - 1.0)', 
+        seed='seed of the image (0 - 2 ** 32)',
+        negative_prompt='negative prompt',
+        aspect_ratio='aspect ratio of the image',
+        model_id='Choose the model to generate',
+        scheduler='scheduler of the image',
+        do_imagine_prompt='let GPT2 to imagine the prompt for you'
+    )
+    async def imagine(self, interaction: Interaction,
+        prompt: str, image_url: str = None, image_resize: int = None, steps: int = 50, guidance_scale: int = 10,
+        strength: float = 0.1, seed: int = None, negative_prompt: str = None, aspect_ratio: ASPECT_RATIO = "1:1",
+        scheduler: SchedulerType = SchedulerType.DPMSOLVER, do_imagine_prompt: bool = True,
+        model_id: SD_MODEL_IDS = "default"):
+        # set thinking status
+        await interaction.response.defer()
+
+        # check if valid values are passed
+        try:
+            assert steps >= 10 and steps <= 200, "steps should be between 10 and 200"
+            assert guidance_scale >= 1 and guidance_scale <= 40, "guidance_scale should be between 1 and 40"
+            assert seed is None or (seed >= 0 and seed <= 2 ** 32), "seed should be between 0 and 2 ** 32"
+            assert aspect_ratio in ASPECT_RATIO_SIZES, "aspect_ratio should be one of the following: 1:1-max, 1:1, 4:3, 16:9"
+            assert scheduler in SchedulerType, "scheduler should be one of the following: dpmsolver, lms, euler"
+            assert model_id in SD_MODEL_IDS, "model_id should be loaded to the server and chosen from the list"
+            assert strength >= 0.01 and strength <= 1.0, "strength should be between 0.01 and 1.0"
+            assert image_resize is None or (image_resize >= 128 and image_resize <= 768), "image_resize should be between 128 and 768"
+        except AssertionError as e:
+            await self.failure(interaction, str(e))
+            return
+
+        if seed is None:
+            seed = random.randint(0, 2 ** 32)
+            
+        if image_resize is None:
+            image_resize = 512
+
+        # get ascpect ratio sizes
+        aspect_sizes = ASPECT_RATIO_SIZES[aspect_ratio]
+
+        # pipe type set
+        if image_url is not None:
+            pipe_type = StabilityPipelineType.IMG2IMG
+        else:
+            pipe_type = StabilityPipelineType.TEXT2IMG
+
+        prompt = Prompt(
+            pipe_type=pipe_type,
+            prompt=prompt,
+            generated_prompt=None if do_imagine_prompt else prompt,
+            negative_prompt=negative_prompt,
+            steps=steps,
+            guidance_scale=guidance_scale,
+            seed=seed,
+            aspect_ratio_sizes=aspect_sizes,
+            scheduler=scheduler,
+            image_url=image_url,
+            image_resize=image_resize,
+            strength=strength,
+            sd_model_id=model_id,
+            gpt_model_id=os.environ.get('GPT_MODEL_ID')
+        )
+
+        # add job
+        self.controller.add_job(prompt, interaction)
+        
+    @describe(
         prompt='Text to generate image', 
         steps='steps of the image (10 - 200)',
         guidance_scale='guidance scale of the image (1 - 40)',
@@ -306,7 +382,7 @@ class OpenJourneyBot:
             aspect_ratio_sizes=aspect_sizes,
             scheduler=scheduler,
             sd_model_id=model_id,
-            gpt_model_id=os.environ.get('GPT_MODEL_ID')
+            gpt_model_id=os.environ.get('GPT_MODEL_ID'),
         )
 
         # add job
