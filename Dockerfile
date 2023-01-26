@@ -7,7 +7,6 @@ RUN nvidia-smi
 WORKDIR /openjourney
 COPY ./discord_bot ./discord_bot
 COPY ./sd_pipeline ./sd_pipeline
-COPY ./.env ./.env
 COPY ./openjourney.py ./openjourney.py
 COPY ./export_user_prompts.py ./export_user_prompts.py
 COPY ./requirements.txt ./requirements.txt

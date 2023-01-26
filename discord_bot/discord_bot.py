@@ -1,36 +1,31 @@
-from discord import Client, Guild, Intents, Interaction, Object, File, ButtonStyle
-from discord.app_commands import CommandTree, Command, describe
-from discord.ui import View, Button, button
-from diffusers import schedulers
+from discord.ui import View, Button, button, select, Select
+from discord import Client, Guild, Intents, Interaction, Object, File, ButtonStyle, SelectOption
+from discord.app_commands import CommandTree, describe
 import os
 import random
 import pathlib
 import json
-from dataclasses import replace
+from dataclasses import replace, asdict
 from typing import Literal, TypeAlias
-from .prompt_factory import Prompt
+from .prompt_factory import Prompt, prompt_asdict_factory, SchedulerType, ASPECT_RATIO, ASPECT_RATIO_SIZES
 from .worker import OpenJourneyController
+from sd_pipeline import StabilityPipelineType
 
 
-ASPECT_RATIO: TypeAlias = Literal["16:9", "4:3", "1:1-max", "1:1", "9:16", "3:4"]
+SD_MODEL_IDS_ = []
 
-# sizes for max side is 768 px
-ASPECT_RATIO_SIZES = {
-    "16:9": (768, 432),
-    "4:3": (768, 576),
-    "1:1-max": (640, 640),
-    "1:1": (512, 512),
-    "9:16": (432, 768),
-    "3:4": (576, 768)
-}
+# parse SD_MODEL_ID_{} from environ, starts from 1, if return None value - stop
+for i in range(1, 100):
+    model_id = os.environ.get(f'SD_MODEL_ID_{i}')
+    if model_id is None:
+        break
+    SD_MODEL_IDS_.append(model_id)
 
-SCHEDULERS: TypeAlias = Literal['euler', 'lms', 'dpmsolver']
+if len(SD_MODEL_IDS_) == 0:
+    SD_MODEL_IDS_.append('default')
 
-SCHEDULERS_MAP = {
-    'euler': schedulers.EulerAncestralDiscreteScheduler,
-    'lms': schedulers.LMSDiscreteScheduler,
-    'dpmsolver': schedulers.DPMSolverMultistepScheduler
-}
+SD_MODEL_IDS = Literal['crunch']
+SD_MODEL_IDS.__args__ = tuple(SD_MODEL_IDS_)
 
 
 class OpenJourneyDialog(View):
@@ -53,14 +48,13 @@ class OpenJourneyDialog(View):
                 prompt.image_url = str(file_path)
                 # print(prompt.image_url)
 
-                prompt.pipe_type = 'img2img'
+                prompt.pipe_type = StabilityPipelineType.IMG2IMG
                 prompt.output_filenames = None
                 if self.do_imagine_prompt:
                     prompt.generated_prompt = None
                 prompt.upscale_ratio = 2
                 prompt.image_resize = 640
                 prompt.steps = 120
-                prompt.scheduler = SCHEDULERS_MAP[prompt.scheduler]
 
                 # and now we can generate the image
                 await interaction.response.defer(thinking=True)
@@ -71,15 +65,13 @@ class OpenJourneyDialog(View):
             case 'upscale':
                 file_path = pathlib.Path(prompt.output_filenames[image_iter])
                 prompt.image_url = str(file_path)
-                # print(prompt.image_url)
 
-                prompt.pipe_type = 'img2upscale'
+                prompt.pipe_type = StabilityPipelineType.IMG2UPSCALE
                 prompt.output_filenames = None
                 prompt.prompt = prompt.generated_prompt
                 prompt.generated_prompt = None
                 prompt.upscale_ratio = 2
                 prompt.num_samples = 1
-                prompt.scheduler = SCHEDULERS_MAP[prompt.scheduler]
                 prompt.grid_cols = 1
                 prompt.grid_rows = 1
                 prompt.grid_size = 1024 * 10
@@ -95,7 +87,6 @@ class OpenJourneyDialog(View):
 
                 if self.do_imagine_prompt:
                     prompt.generated_prompt = None
-                prompt.scheduler = SCHEDULERS_MAP[prompt.scheduler]
 
                 # and now we can generate the image
                 await interaction.response.defer(thinking=True)
@@ -153,6 +144,17 @@ class OpenJourneyDialog(View):
 
         await interaction.response.edit_message(view=self)
 
+    @select(options=[SelectOption(label=x.split('/')[1], value=x, emoji='🤗', description=x) for x in SD_MODEL_IDS.__args__], 
+        placeholder="Select a model", custom_id="model_select", max_values=1)
+    async def model_select(self, interaction: Interaction, select: Select):
+        self.prompt.model_id = select.values[0]
+
+        # change the select, set default=True for the selected model
+        for option in select.options:
+            option.default = option.value == self.prompt.model_id
+
+        await interaction.response.edit_message(view=self)
+
 
 class OpenJourneyBot:
     def __init__(self):
@@ -166,11 +168,12 @@ class OpenJourneyBot:
         else:
             self.guild = Object(id=int(self.guild_id))
 
-        self.sd_model_id = os.environ['SD_MODEL_ID']
+        self.sd_model_ids = SD_MODEL_IDS.__args__ if SD_MODEL_IDS.__args__ != ('default', ) else ()
+
         self.gpt_model_id = os.environ['GPT_MODEL_ID']
         self.nsfw_generate = os.environ.get('NSFW_GENERATE', False).lower() in ['true', '1', 't', 'y', 'yes']
         self.controller = OpenJourneyController(self.client, os.environ['UPLOAD_PATH'], 
-            sd_model_id=self.sd_model_id, gpt_model_id=self.gpt_model_id, nsfw_generate=self.nsfw_generate)
+            sd_model_ids=self.sd_model_ids, gpt_model_id=self.gpt_model_id, nsfw_generate=self.nsfw_generate)
 
     def commands(self):
         self.command_tree.command(
@@ -195,6 +198,7 @@ class OpenJourneyBot:
         self.client.event(self.on_guild_join)
 
     async def on_ready(self):
+        print('Syncing commands...')
         await self.command_tree.sync()
         print("Bot is ready!")
 
@@ -207,19 +211,15 @@ class OpenJourneyBot:
         # TODO: Fix Payload too large error
         attachments = [File(image_path, filename='grid.png')]
 
-        # reverse keys and values in SCHEDULERS_MAP
-        schedulers = {v: k for k, v in SCHEDULERS_MAP.items()}
-        prompt.scheduler = schedulers[prompt.scheduler]
-
         # write out json file
         basement = pathlib.Path(image_path).parent
         json_path = basement / 'prompt.json'
 
         with open(json_path, 'w') as f:
-            json.dump(prompt.to_dict(), f, indent=4, ensure_ascii=False)
+            json.dump(asdict(prompt, dict_factory=prompt_asdict_factory), f, indent=4, ensure_ascii=False)
 
         # set up view
-        if prompt.pipe_type != 'img2upscale':
+        if prompt.pipe_type != StabilityPipelineType.IMG2UPSCALE:
             view = OpenJourneyDialog(self, interaction=interaction, prompt=prompt)
         else:
             view = None
@@ -229,7 +229,8 @@ class OpenJourneyBot:
                     f'Steps: `{prompt.steps}`\n' \
                     f'Guidance scale: `{prompt.guidance_scale}`\n' \
                     f'Seed: `{prompt.seed}`\n' \
-                    f'Scheduler: `{prompt.scheduler}`' \
+                    f'SD Model: `{prompt.sd_model_id}`\n' \
+                    f'Scheduler: `{prompt.scheduler.name.lower()}`' \
                     '\n\nWARNING: This is the beta-test of new version, may not work properly. ' \
                     'Please report any bugs to @Ar4ikov#3805'
 
@@ -263,13 +264,15 @@ class OpenJourneyBot:
         seed='seed of the image (0 - 2 ** 32)',
         negative_prompt='negative prompt',
         aspect_ratio='aspect ratio of the image',
+        model_id='Choose the model to generate',
         scheduler='scheduler of the image',
         do_imagine_prompt='let GPT2 to imagine the prompt for you'
     )
     async def text_generate(self, interaction: Interaction, 
         prompt: str, steps: int = 50, guidance_scale: int = 10, 
         seed: int = None, negative_prompt: str = None, aspect_ratio: ASPECT_RATIO = "1:1",
-        scheduler: SCHEDULERS = "dpmsolver", do_imagine_prompt: bool = True):
+        scheduler: SchedulerType = SchedulerType.DPMSOLVER, do_imagine_prompt: bool = True,
+        model_id: SD_MODEL_IDS = "default"):
         # set thinking status
         await interaction.response.defer(thinking=True)
 
@@ -279,7 +282,8 @@ class OpenJourneyBot:
             assert guidance_scale >= 1 and guidance_scale <= 40, "guidance_scale should be between 1 and 40"
             assert seed is None or (seed >= 0 and seed <= 2 ** 32), "seed should be between 0 and 2 ** 32"
             assert aspect_ratio in ASPECT_RATIO_SIZES, "aspect_ratio should be one of the following: 1:1-max, 1:1, 4:3, 16:9"
-            assert scheduler in SCHEDULERS_MAP, "scheduler should be one of the following: dpmsolver, lms, euler"
+            assert scheduler in SchedulerType, "scheduler should be one of the following: dpmsolver, lms, euler"
+            assert model_id in SD_MODEL_IDS, "model_id should be loaded to the server and chosen from the list"
         except AssertionError as e:
             await interaction.followup.send(e)
             return
@@ -290,12 +294,9 @@ class OpenJourneyBot:
         # get ascpect ratio sizes
         aspect_sizes = ASPECT_RATIO_SIZES[aspect_ratio]
 
-        # get scheduler
-        scheduler = SCHEDULERS_MAP[scheduler]
-
         # create prompt
         prompt = Prompt(
-            pipe_type='text2img',
+            pipe_type=StabilityPipelineType.TEXT2IMG,
             prompt=prompt,
             generated_prompt=None if do_imagine_prompt else prompt,
             negative_prompt=negative_prompt,
@@ -304,7 +305,7 @@ class OpenJourneyBot:
             seed=seed,
             aspect_ratio_sizes=aspect_sizes,
             scheduler=scheduler,
-            sd_model_id=os.environ.get('SD_MODEL_ID'),
+            sd_model_id=model_id,
             gpt_model_id=os.environ.get('GPT_MODEL_ID')
         )
 
@@ -321,13 +322,15 @@ class OpenJourneyBot:
         seed='seed of the image (0 - 2 ** 32)',
         negative_prompt='negative prompt',
         scheduler='scheduler of the image',
+        model_id='Choose the model to generate',
         do_imagine_prompt='let GPT2 to imagine the prompt for you'
     )
     async def image_generate(self, interaction: Interaction,
         image_url: str, prompt: str, image_resize: int = None,
         strength: float = 0.75, steps: int = 75, 
         guidance_scale: int = 10, seed: int = None, negative_prompt: str = None,
-        scheduler: SCHEDULERS = "dpmsolver", do_imagine_prompt: bool = True):
+        scheduler: SchedulerType = SchedulerType.DPMSOLVER, do_imagine_prompt: bool = True,
+        model_id: SD_MODEL_IDS = "default"):
         # set thinking status
         await interaction.response.defer(thinking=True)
 
@@ -338,7 +341,8 @@ class OpenJourneyBot:
             assert guidance_scale >= 1 and guidance_scale <= 40, "guidance_scale should be between 1 and 40"
             assert seed is None or (seed >= 0 and seed <= 2 ** 32), "seed should be between 0 and 2 ** 32"
             assert image_resize is None or (image_resize >= 128 and image_resize <= 768), "image_resize should be between 128 and 768"
-            assert scheduler in SCHEDULERS_MAP, "scheduler should be one of the following: dpmsolver, lms, euler"
+            assert scheduler in SchedulerType, "scheduler should be one of the following: dpmsolver, lms, euler"
+            assert model_id in SD_MODEL_IDS, "model_id should be loaded to the server and chosen from the list"
         except AssertionError as e:
             await interaction.followup.send(e)
             return
@@ -349,12 +353,9 @@ class OpenJourneyBot:
         if image_resize is None:
             image_resize = 512
 
-        # get scheduler
-        scheduler = SCHEDULERS_MAP[scheduler]
-
         # create prompt
         prompt = Prompt(
-            pipe_type='img2img',
+            pipe_type=StabilityPipelineType.IMG2IMG,
             prompt=prompt,
             generated_prompt=None if do_imagine_prompt else prompt,
             image_url=image_url,
@@ -365,7 +366,7 @@ class OpenJourneyBot:
             guidance_scale=guidance_scale,
             seed=seed,
             scheduler=scheduler,
-            sd_model_id=os.environ.get('SD_MODEL_ID'),
+            sd_model_id=model_id,
             gpt_model_id=os.environ.get('GPT_MODEL_ID')
         )
 

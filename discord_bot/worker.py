@@ -1,4 +1,4 @@
-from sd_pipeline import StabilityPipeline
+from sd_pipeline import StabilityPipeline, StabilityPipelineType
 from diffusers import schedulers
 import pathlib
 import uuid
@@ -6,7 +6,7 @@ import PIL
 import torch
 import random
 import threading
-from .prompt_factory import QueueItem, Prompt, Interaction, pipe_type
+from .prompt_factory import QueueItem, Prompt, Interaction
 from typing import Callable
 from time import sleep
 import shutil
@@ -32,7 +32,7 @@ class Queue:
 
 
 class OpenJourneyWorker(threading.Thread):
-    def __init__(self, client, queue: Queue, upload_path: str, device="cpu", *args, **kwargs):
+    def __init__(self, client, queue: Queue, upload_path: str, device="cpu", sd_model_ids: list[str] = None, *args, **kwargs):
         super().__init__()
         self.upload_path = pathlib.Path(upload_path)
         self.upload_path.mkdir(parents=True, exist_ok=True)
@@ -41,34 +41,66 @@ class OpenJourneyWorker(threading.Thread):
         self.device = device
         self.name = 'OpenJoureyWorker'
 
-        self.sd_model_id = None
-        self.gpt_model_id = None
+        self.sd_model_ids = sd_model_ids
+        self.gpt_model_id = kwargs.get('gpt_model_id')
+        self.gpu_first = kwargs.get('gpu_first', False)
 
-        if 'sd_model_id' in kwargs:
-            self.sd_model_id: str = kwargs['sd_model_id']
+        self.models_pipelines: dict[str, dict[StabilityPipelineType, StabilityPipeline]] = {}
 
-        if 'gpt_model_id' in kwargs:
-            self.gpt_model_id: str = kwargs['gpt_model_id']
+        if not self.sd_model_ids:
+            model_pipeline = {
+                StabilityPipelineType.TEXT2IMG: None,
+                StabilityPipelineType.IMG2IMG: None
+            }
 
-        if 'gpu_first' in kwargs:
-            self.gpu_first: bool = kwargs['gpu_first']
+            model_pipeline[StabilityPipelineType.TEXT2IMG] = StabilityPipeline(
+                pipe_type=StabilityPipelineType.TEXT2IMG,
+                device='cpu' if not self.gpu_first else self.device,
+                sd_model_id=None,
+                gpt_model_id=self.gpt_model_id,
+                safety_check=not kwargs.get('nsfw_generate', True)
+            )
+
+            model_pipeline[StabilityPipelineType.IMG2IMG] = StabilityPipeline(
+                pipe_type=StabilityPipelineType.IMG2IMG,
+                device='cpu' if not self.gpu_first else self.device,
+                sd_model_id=None,
+                gpt_model_id=self.gpt_model_id,
+                safety_check=not kwargs.get('nsfw_generate', True)
+            )
+
+            self.models_pipelines['default'] = model_pipeline
+
         else:
-            self.gpu_first: bool = False
+            for model_id in self.sd_model_ids:
+                model_pipeline = {
+                    StabilityPipelineType.TEXT2IMG: None,
+                    StabilityPipelineType.IMG2IMG: None
+                }
 
-        self.text2img_pipeline = StabilityPipeline(
-            pipe_type='text2img',
-            device='cpu' if not self.gpu_first else self.device,
-            sd_model_id=self.sd_model_id,
-            gpt_model_id=self.gpt_model_id,
-            safety_check=not kwargs.get('nsfw_generate', True)
-        )
+                model_pipeline[StabilityPipelineType.TEXT2IMG] = StabilityPipeline(
+                    pipe_type=StabilityPipelineType.TEXT2IMG,
+                    device='cpu' if not self.gpu_first else self.device,
+                    sd_model_id=model_id,
+                    gpt_model_id=self.gpt_model_id,
+                    safety_check=not kwargs.get('nsfw_generate', True)
+                )
 
-        self.img2img_pipeline = StabilityPipeline(
-            pipe_type='img2img',
-            device='cpu' if not self.gpu_first else self.device,
-            sd_model_id=self.sd_model_id,
-            gpt_model_id=self.gpt_model_id
-        )
+                model_pipeline[StabilityPipelineType.IMG2IMG] = StabilityPipeline(
+                    pipe_type=StabilityPipelineType.IMG2IMG,
+                    device='cpu' if not self.gpu_first else self.device,
+                    sd_model_id=model_id,
+                    gpt_model_id=self.gpt_model_id,
+                    safety_check=not kwargs.get('nsfw_generate', True)
+                )
+
+                self.models_pipelines[model_id] = model_pipeline
+
+            self.models_pipelines['default'] = self.models_pipelines[self.sd_model_ids[0]]
+
+        # for use in run()
+        self.text2img_pipeline: StabilityPipeline = None
+        self.img2img_pipeline: StabilityPipeline = None
 
         self.callback_success_function = None
         self.callback_failure_function = None
@@ -93,7 +125,7 @@ class OpenJourneyWorker(threading.Thread):
             seed = random.randint(0, 2 ** 32)
 
         if scheduler is not None:
-            self.text2img_pipeline.set_scheduler(scheduler)
+            self.text2img_pipeline.set_scheduler(scheduler.value)
 
         images = []
 
@@ -120,7 +152,7 @@ class OpenJourneyWorker(threading.Thread):
             seed = random.randint(0, 2 ** 32)
 
         if scheduler is not None:
-            self.img2img_pipeline.set_scheduler(scheduler)
+            self.img2img_pipeline.set_scheduler(scheduler.value)
 
         images = []
 
@@ -151,7 +183,12 @@ class OpenJourneyWorker(threading.Thread):
             
             prompt: Prompt
             interaction: Interaction
+            self.text2img_pipeline: StabilityPipeline
+            self.img2img_pipeline: StabilityPipeline
+
             prompt, interaction = item.prompt, item.interaction
+            self.text2img_pipeline = self.models_pipelines.get(prompt.sd_model_id, self.models_pipelines['default'])[StabilityPipelineType.TEXT2IMG]
+            self.img2img_pipeline = self.models_pipelines.get(prompt.sd_model_id, self.models_pipelines['default'])[StabilityPipelineType.IMG2IMG]
 
             # imagine a prompt
             if prompt.generated_prompt is None:
@@ -160,7 +197,7 @@ class OpenJourneyWorker(threading.Thread):
                     device=self.device
                 )
 
-            if prompt.pipe_type == 'text2img':
+            if prompt.pipe_type == StabilityPipelineType.TEXT2IMG:
                 images = self.text2img_pipeline.create_job(
                     self.text_diffuse, device=self.device,
                     prompt=prompt.generated_prompt,
@@ -173,7 +210,7 @@ class OpenJourneyWorker(threading.Thread):
                     scheduler=prompt.scheduler
                 )
 
-            elif prompt.pipe_type == 'img2img':
+            elif prompt.pipe_type == StabilityPipelineType.IMG2IMG:
                 # using regex for check if image_url is valid url of valid local filename
                 is_valid_url = self.text2img_pipeline.is_image(prompt.image_url)
                 is_valid_local_filename = os.path.isfile(prompt.image_url)
@@ -227,7 +264,7 @@ class OpenJourneyWorker(threading.Thread):
                     scheduler=prompt.scheduler
                 )
 
-            elif prompt.pipe_type == 'img2upscale':
+            elif prompt.pipe_type == StabilityPipelineType.IMG2UPSCALE:
                 images = [PIL.Image.open(prompt.image_url).convert('RGB')]
 
             sd_batch_id = str(uuid.uuid4())
@@ -288,7 +325,7 @@ class OpenJourneyWorker(threading.Thread):
 
 
 class OpenJourneyController:
-    def __init__(self, client, upload_path: str, num_gpus: int = 1, num_workers_per_gpu: int = 2, *args, **kwargs):
+    def __init__(self, client, upload_path: str, sd_model_ids: list[str], num_gpus: int = 1, num_workers_per_gpu: int = 2, *args, **kwargs):
         self.num_gpus = num_gpus
         self.num_workers_per_gpu = num_workers_per_gpu
 
@@ -300,7 +337,7 @@ class OpenJourneyController:
         for i in range(self.num_gpus):
             for j in range(self.num_workers_per_gpu):
                 worker = OpenJourneyWorker(
-                    self.client, self.queue, upload_path, f'cuda:{i}', *args, **kwargs
+                    self.client, self.queue, upload_path, f'cuda:{i}', sd_model_ids, *args, **kwargs
                 )
 
                 self.workers.append(worker)

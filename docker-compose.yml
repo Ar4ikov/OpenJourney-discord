@@ -28,7 +28,7 @@ services:
       resources:
         limits:
           cpus: '8.0'
-          memory: 32768M
+          memory: 65536M 
         reservations:
           devices:
           - driver: nvidia

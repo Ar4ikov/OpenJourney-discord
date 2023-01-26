@@ -1,1 +1,1 @@
-from .stability_pipeline import StabilityPipeline, create_imaginary_prompt_pipeline
+from .stability_pipeline import StabilityPipeline, StabilityPipelineType, create_imaginary_prompt_pipeline
