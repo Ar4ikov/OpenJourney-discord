@@ -147,7 +147,7 @@ class OpenJourneyDialog(View):
     @select(options=[SelectOption(label=x.split('/')[1], value=x, emoji='🤗', description=x) for x in SD_MODEL_IDS.__args__], 
         placeholder="Select a model", custom_id="model_select", max_values=1)
     async def model_select(self, interaction: Interaction, select: Select):
-        self.prompt.model_id = select.values[0]
+        self.prompt.sd_model_id = select.values[0]
 
         # change the select, set default=True for the selected model
         for option in select.options:
@@ -291,12 +291,14 @@ class OpenJourneyBot:
             assert seed is None or (seed >= 0 and seed <= 2 ** 32), "seed should be between 0 and 2 ** 32"
             assert aspect_ratio in ASPECT_RATIO_SIZES, "aspect_ratio should be one of the following: 1:1-max, 1:1, 4:3, 16:9"
             assert scheduler in SchedulerType, "scheduler should be one of the following: dpmsolver, lms, euler"
-            assert model_id in SD_MODEL_IDS, "model_id should be loaded to the server and chosen from the list"
             assert strength >= 0.01 and strength <= 1.0, "strength should be between 0.01 and 1.0"
             assert image_resize is None or (image_resize >= 128 and image_resize <= 768), "image_resize should be between 128 and 768"
         except AssertionError as e:
             await self.failure(interaction, str(e))
             return
+
+        if len(SD_MODEL_IDS_) >= 2 and model_id == "default":
+            model_id = SD_MODEL_IDS_[0]
 
         if seed is None:
             seed = random.randint(0, 2 ** 32)
@@ -359,10 +361,12 @@ class OpenJourneyBot:
             assert seed is None or (seed >= 0 and seed <= 2 ** 32), "seed should be between 0 and 2 ** 32"
             assert aspect_ratio in ASPECT_RATIO_SIZES, "aspect_ratio should be one of the following: 1:1-max, 1:1, 4:3, 16:9"
             assert scheduler in SchedulerType, "scheduler should be one of the following: dpmsolver, lms, euler"
-            assert model_id in SD_MODEL_IDS, "model_id should be loaded to the server and chosen from the list"
         except AssertionError as e:
             await interaction.followup.send(e)
             return
+
+        if len(SD_MODEL_IDS_) >= 2 and model_id == "default":
+            model_id = SD_MODEL_IDS_[0]
 
         if seed is None:
             seed = random.randint(0, 2 ** 32)
@@ -418,10 +422,12 @@ class OpenJourneyBot:
             assert seed is None or (seed >= 0 and seed <= 2 ** 32), "seed should be between 0 and 2 ** 32"
             assert image_resize is None or (image_resize >= 128 and image_resize <= 768), "image_resize should be between 128 and 768"
             assert scheduler in SchedulerType, "scheduler should be one of the following: dpmsolver, lms, euler"
-            assert model_id in SD_MODEL_IDS, "model_id should be loaded to the server and chosen from the list"
         except AssertionError as e:
             await interaction.followup.send(e)
             return
+        
+        if len(SD_MODEL_IDS_) >= 2 and model_id == "default":
+            model_id = SD_MODEL_IDS_[0]
 
         if seed is None:
             seed = random.randint(0, 2 ** 32)
