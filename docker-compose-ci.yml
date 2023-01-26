@@ -20,7 +20,7 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - .env
+      - .env_example
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
       - NVIDIA_VISIBLE_DEVICES=all
