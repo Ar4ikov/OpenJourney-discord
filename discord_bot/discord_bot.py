@@ -151,7 +151,7 @@ class OpenJourneyDialog(View):
 
         # change the select, set default=True for the selected model
         for option in select.options:
-            option.default = option.value == self.prompt.model_id
+            option.default = option.value == self.prompt.sd_model_id
 
         await interaction.response.edit_message(view=self)
 
